@@ -543,6 +543,14 @@ QMutex *Probe::objectLock()
     return s_lock();
 }
 
+QSharedPointer<QMutexLocker> Probe::objectLocker(QObject *object)
+{
+    Q_ASSERT(object);
+    if (object->thread() == QThread::currentThread())
+        return QSharedPointer<QMutexLocker>();
+    return QSharedPointer<QMutexLocker>(new QMutexLocker(s_lock()));
+}
+
 /*
  * We need to handle 4 different cases in here:
  * (1) our thread, from ctor:
