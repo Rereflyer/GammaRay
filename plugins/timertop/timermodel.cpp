@@ -41,6 +41,9 @@
 #include <QTimer>
 #include <QThread>
 #include <QCoreApplication>
+#include <QAbstractEventDispatcher>
+
+#include <QInternal>
 
 #include <iostream>
 
@@ -208,6 +211,8 @@ TimerModel::TimerModel(QObject *parent)
     const int applyChangesIndex = TimerModel::staticMetaObject.indexOfSlot("applyChanges(GammaRay::TimerIdInfoHash)");
     m_applyChangesMethod = TimerModel::staticMetaObject.method(applyChangesIndex);
     Q_ASSERT(m_applyChangesMethod.methodIndex() != -1);
+
+    QInternal::registerCallback(QInternal::EventNotifyCallback, eventNotifyCallback);
 }
 
 const TimerIdInfo *TimerModel::findTimerInfo(const QModelIndex &index) const
@@ -272,7 +277,51 @@ void TimerModel::pushChanges()
     infoHash.squeeze();
 
     s_timerModel->m_applyChangesMethod.invoke(s_timerModel, Qt::QueuedConnection,
-                                Q_ARG(GammaRay::TimerIdInfoHash, infoHash));
+                                              Q_ARG(GammaRay::TimerIdInfoHash, infoHash));
+}
+
+bool TimerModel::eventNotifyCallback(void *data[])
+{
+    /*
+     * data[0] == receiver
+     * data[1] == event
+     * data[2] == bool result ref, what is returned by caller if this function return true
+     * (QCoreApplication::notifyInternal / QCoreApplication::notifyInternal2)
+     */
+    QObject *receiver = static_cast<QObject *>(data[0]);
+    QEvent *event = static_cast<QEvent *>(data[1]);
+//    bool *result = static_cast<bool *>(data[2]);
+
+    if (event->type() == QEvent::Timer) {
+        const QTimerEvent *const timerEvent = static_cast<QTimerEvent *>(event);
+        Q_ASSERT(timerEvent->timerId() != -1);
+        const QTimer *const timer = qobject_cast<QTimer *>(receiver);
+
+        // If there is a QTimer associated with this timer ID, don't handle it here, it will be handled
+        // by the signal hooks preSignalActivate/postSignalActivate.
+        if (timer && timer->timerId() == timerEvent->timerId()) {
+            return false;
+        }
+
+        {
+            QMutexLocker locker(Probe::objectLock());
+            const TimerId id(timerEvent->timerId());
+            auto it = s_gatheredTimersData.find(id);
+
+            if (it == s_gatheredTimersData.end()) {
+                it = s_gatheredTimersData.insert(id, TimerIdData());
+            }
+
+            const TimeoutEvent timeoutEvent(QTime::currentTime(), -1);
+
+            it.value().update(id, receiver);
+            it.value().addEvent(timeoutEvent);
+
+            TimerModel::triggerPushChanges();
+        }
+    }
+
+    return false;
 }
 
 TimerModel::~TimerModel()
@@ -483,39 +532,6 @@ QMap<int, QVariant> TimerModel::itemData(const QModelIndex &index) const
     if (index.column() == 0)
         d.insert(TimerModel::ObjectIdRole, QVariant::fromValue(static_cast<QObject *>(index.internalPointer())));
     return d;
-}
-
-bool TimerModel::eventFilter(QObject *watched, QEvent *event)
-{
-    // We are always in the GUI thread here, so we only receive timers of this thread
-    if (event->type() == QEvent::Timer) {
-        const auto locker = Probe::objectLocker(watched);
-        const QTimerEvent *const timerEvent = static_cast<QTimerEvent *>(event);
-        Q_ASSERT(timerEvent->timerId() != -1);
-        const QTimer *const timer = qobject_cast<QTimer *>(watched);
-
-        // If there is a QTimer associated with this timer ID, don't handle it here, it will be handled
-        // by the signal hooks preSignalActivate/postSignalActivate.
-        if (timer && timer->timerId() == timerEvent->timerId()) {
-            return QAbstractTableModel::eventFilter(watched, event);
-        }
-
-        const TimerId id(timerEvent->timerId());
-        auto it = s_gatheredTimersData.find(id);
-
-        if (it == s_gatheredTimersData.end()) {
-            it = s_gatheredTimersData.insert(id, TimerIdData());
-        }
-
-        const TimeoutEvent timeoutEvent(QTime::currentTime(), -1);
-
-        it.value().update(id, watched);
-        it.value().addEvent(timeoutEvent);
-
-        triggerPushChanges();
-    }
-
-    return QAbstractTableModel::eventFilter(watched, event);
 }
 
 void TimerModel::applyChanges(const GammaRay::TimerIdInfoHash &changes)

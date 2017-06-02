@@ -81,8 +81,6 @@ public:
                         int role = Qt::DisplayRole) const override;
     QMap<int, QVariant> itemData(const QModelIndex &index) const override;
 
-    bool eventFilter(QObject *watched, QEvent *event) override;
-
 private slots:
     void applyChanges(const GammaRay::TimerIdInfoHash &changes);
 
@@ -100,6 +98,7 @@ private:
 
     static void triggerPushChanges();
     static void pushChanges();
+    static bool eventNotifyCallback(void *data[]);
 
     // model data
     QAbstractItemModel *m_sourceModel;
