@@ -81,6 +81,9 @@ public:
                         int role = Qt::DisplayRole) const override;
     QMap<int, QVariant> itemData(const QModelIndex &index) const override;
 
+public slots:
+    void clearHistory();
+
 private slots:
     void applyChanges(const GammaRay::TimerIdInfoHash &changes);
 

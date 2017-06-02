@@ -168,6 +168,12 @@ struct TimerIdData : TimerIdInfo
 
     void clearHistory()
     {
+        TimerIdInfo::totalWakeups = 0;
+        TimerIdInfo::state.clear();
+        TimerIdInfo::wakeupsPerSec.clear();
+        TimerIdInfo::timePerWakeup.clear();
+        TimerIdInfo::maxWakeupTime.clear();
+
         totalWakeupsEvents = 0;
         if (functionCallTimer.active())
             functionCallTimer.stop();
@@ -248,6 +254,7 @@ void TimerModel::triggerPushChanges()
         s_timerModel->m_pushTimer = QSharedPointer<QTimer>(new QTimer);
         s_timerModel->m_pushTimer->setSingleShot(true);
         s_timerModel->m_pushTimer->setInterval(5000);
+        s_timerModel->m_pushTimer->moveToThread(s_timerModel->thread());
         QObject::connect(s_timerModel->m_pushTimer.data(), &QTimer::timeout,
                          s_timerModel->m_pushTimer.data(), TimerModel::pushChanges, Qt::QueuedConnection);
     }
@@ -534,6 +541,38 @@ QMap<int, QVariant> TimerModel::itemData(const QModelIndex &index) const
     return d;
 }
 
+void TimerModel::clearHistory()
+{
+    QMutexLocker locker(Probe::objectLock());
+
+    for (auto it = s_gatheredTimersData.begin(); it != s_gatheredTimersData.end(); ) {
+        switch (it.key().type()) {
+        case TimerId::InvalidType:
+        case TimerId::QObjectType:
+            it = s_gatheredTimersData.erase(it);
+            break;
+
+        case TimerId::QQmlTimerType:
+        case TimerId::QTimerType:
+            it.value().clearHistory();
+            ++it;
+            break;
+        }
+    }
+
+    // don't send dataChanged here to avoid network traffic for nothing.
+    // triggerPushChanges will anyway update all non free timers on its next iteration.
+    m_timersInfo.clear();
+
+    if (!m_freeTimersInfo.isEmpty()) {
+        beginRemoveRows(QModelIndex(), m_sourceModel->rowCount(), m_sourceModel->rowCount() + m_freeTimersInfo.count() - 1);
+        m_freeTimersInfo.clear();
+        endRemoveRows();
+    }
+
+    triggerPushChanges();
+}
+
 void TimerModel::applyChanges(const GammaRay::TimerIdInfoHash &changes)
 {
     QSet<TimerId> handledIds;
@@ -693,6 +732,7 @@ void TimerModel::slotBeginReset()
 
     s_gatheredTimersData.clear();
     m_timersInfo.clear();
+    m_freeTimersInfo.clear();
 }
 
 void TimerModel::slotEndReset()
