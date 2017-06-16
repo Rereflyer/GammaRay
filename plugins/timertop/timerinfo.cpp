@@ -35,6 +35,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QThread>
+#include <QAbstractEventDispatcher>
 #include <QMutexLocker>
 
 using namespace GammaRay;
@@ -231,6 +232,17 @@ void TimerIdInfo::update(const TimerId &id, QObject *receiver)
                 ? (validObject ? Util::displayString(receiver) : Util::addressToString(receiver))
                 : TimerModel::tr("Unknown QObject");
         state = TimerModel::tr("N/A");
+
+        const QList<QAbstractEventDispatcher::TimerInfo> timers = receiver->thread()->eventDispatcher()->registeredTimers(receiver);
+        const auto it = std::find_if(timers.constBegin(), timers.constEnd(), [this](const QAbstractEventDispatcher::TimerInfo &timer) {
+            return timer.timerId == timerId;
+        });
+
+        if (it != timers.constEnd()) {
+            const int interval = (*it).interval;
+            state = TimerModel::tr("Repeating (%1 ms)").arg(interval);
+        }
+
         break;
     }
     }
