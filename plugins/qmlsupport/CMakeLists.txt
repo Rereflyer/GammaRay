@@ -12,9 +12,9 @@ set(gammaray_qmlsupport_srcs
   qmlbindingmodel.cpp
   qmlbindingnode.cpp
 )
-include_directories(SYSTEM ${Qt5Qml_PRIVATE_INCLUDE_DIRS})
+include_directories(SYSTEM ${Qt5Qml_PRIVATE_INCLUDE_DIRS} ${Qt5Quick_PRIVATE_INCLUDE_DIRS})
 gammaray_add_plugin(gammaray_qmlsupport JSON gammaray_qmlsupport.json SOURCES ${gammaray_qmlsupport_srcs})
-target_link_libraries(gammaray_qmlsupport gammaray_core Qt5::Qml)
+target_link_libraries(gammaray_qmlsupport gammaray_core Qt5::Qml Qt5::Quick)
 
 # ui plugin
 if(GAMMARAY_BUILD_UI)
