@@ -33,7 +33,9 @@
 #include <common/modelroles.h>
 
 #include <QAbstractTableModel>
+#include <QSharedPointer>
 #include <QMetaMethod>
+#include <QVector>
 #include <QHash>
 
 QT_BEGIN_NAMESPACE

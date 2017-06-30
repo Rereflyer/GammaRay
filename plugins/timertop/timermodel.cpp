@@ -41,7 +41,6 @@
 #include <QTimer>
 #include <QThread>
 #include <QCoreApplication>
-#include <QAbstractEventDispatcher>
 
 #include <QInternal>
 
@@ -255,8 +254,8 @@ void TimerModel::triggerPushChanges()
         s_timerModel->m_pushTimer->setSingleShot(true);
         s_timerModel->m_pushTimer->setInterval(5000);
         s_timerModel->m_pushTimer->moveToThread(s_timerModel->thread());
-        QObject::connect(s_timerModel->m_pushTimer.data(), &QTimer::timeout,
-                         s_timerModel->m_pushTimer.data(), TimerModel::pushChanges, Qt::QueuedConnection);
+        connect(s_timerModel->m_pushTimer.data(), SIGNAL(timeout()),
+                         s_timerModel->m_pushTimer.data(), SLOT(pushChanges()), Qt::QueuedConnection);
     }
 
     if (!s_timerModel->m_pushTimer->isActive()) {
@@ -448,7 +447,11 @@ QModelIndex TimerModel::index(int row, int column, const QModelIndex &parent) co
             return createIndex(row, column, row - m_sourceModel->rowCount());
         }
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
         Q_UNREACHABLE();
+#else
+        Q_ASSERT(false);
+#endif
     }
 
     return QModelIndex();

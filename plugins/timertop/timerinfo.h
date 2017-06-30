@@ -29,6 +29,8 @@
 #define GAMMARAY_TIMERTOP_TIMERINFO_H
 
 #include <QPointer>
+#include <QHash>
+#include <QMetaType>
 
 QT_BEGIN_NAMESPACE
 class QTimer;
