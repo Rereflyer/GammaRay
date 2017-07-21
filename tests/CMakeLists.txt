@@ -425,6 +425,16 @@ target_include_directories(quickinspectortest SYSTEM PRIVATE ${Qt5Quick_PRIVATE_
 target_link_libraries(quickinspectortest gammaray_core Qt5::Test Qt5::Quick)
 add_test(NAME quickinspectortest COMMAND quickinspectortest)
 
+set(quickinspectorpickingtest_srcs
+    quickinspectorpickingtest.cpp
+    $<TARGET_OBJECTS:modeltestobj>
+    $<TARGET_OBJECTS:gammaray_probe_obj>
+)
+qt4_add_resources(quickinspectorpickingtest_srcs quickinspectortest.qrc)
+add_executable(quickinspectorpickingtest ${quickinspectorpickingtest_srcs})
+target_link_libraries(quickinspectorpickingtest gammaray_core Qt5::Test Qt5::Quick)
+add_test(NAME quckinspectorpickingtest COMMAND quickinspectorpickingtest)
+
 set(quicktexturetest_srcs
     quicktexturetest.cpp
     $<TARGET_OBJECTS:gammaray_probe_obj>
