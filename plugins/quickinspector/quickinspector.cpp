@@ -76,6 +76,7 @@
 #include <QSGTextureMaterial>
 #include <QSGVertexColorMaterial>
 #include <private/qquickshadereffectsource_p.h>
+#include <private/qsgrendernode_p.h>
 #include <QMatrix4x4>
 #include <QCoreApplication>
 
@@ -100,6 +101,7 @@ Q_DECLARE_METATYPE(QSGClipNode *)
 Q_DECLARE_METATYPE(QSGTransformNode *)
 Q_DECLARE_METATYPE(QSGRootNode *)
 Q_DECLARE_METATYPE(QSGOpacityNode *)
+Q_DECLARE_METATYPE(QSGRenderNode *)
 Q_DECLARE_METATYPE(QSGNode::Flags)
 Q_DECLARE_METATYPE(QSGNode::DirtyState)
 Q_DECLARE_METATYPE(QSGGeometry *)
@@ -111,6 +113,10 @@ Q_DECLARE_METATYPE(QSGMaterial *)
 Q_DECLARE_METATYPE(QSGMaterial::Flags)
 Q_DECLARE_METATYPE(QSGTexture::WrapMode)
 Q_DECLARE_METATYPE(QSGTexture::Filtering)
+Q_DECLARE_METATYPE(QSGRenderNode::StateFlags)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+Q_DECLARE_METATYPE(QSGRenderNode::RenderingFlags)
+#endif
 #if QT_VERSION < QT_VERSION_CHECK(5, 5, 0)
 Q_DECLARE_METATYPE(Qt::MouseButtons)
 #endif
@@ -216,6 +222,48 @@ static QString qsgMaterialFlagsToString(QSGMaterial::Flags flags)
         return QStringLiteral("<none>");
     return list.join(QStringLiteral(" | "));
 }
+
+static QString qSGRenderNodeStateFlagsToString(QSGRenderNode::StateFlags flags)
+{
+    QStringList list;
+    if (flags & QSGRenderNode::DepthState)
+        list << QStringLiteral("DepthState");
+    if (flags & QSGRenderNode::StencilState)
+        list << QStringLiteral("StencilState");
+    if (flags & QSGRenderNode::ScissorState)
+        list << QStringLiteral("ScissorState");
+    if (flags & QSGRenderNode::ColorState)
+        list << QStringLiteral("ColorState");
+    if (flags & QSGRenderNode::BlendState)
+        list << QStringLiteral("BlendState");
+    if (flags & QSGRenderNode::CullState)
+        list << QStringLiteral("CullState");
+    if (flags & QSGRenderNode::ViewportState)
+        list << QStringLiteral("ViewportState");
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+    if (flags & QSGRenderNode::RenderTargetState)
+        list << QStringLiteral("RenderTargetState");
+#endif
+    if (list.isEmpty())
+        return QStringLiteral("<none>");
+    return list.join(QStringLiteral(" | "));
+}
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+static QString qSGRenderNodeRenderingFlagsToString(QSGRenderNode::RenderingFlags flags)
+{
+    QStringList list;
+    if (flags & QSGRenderNode::BoundedRectRendering)
+        list << QStringLiteral("BoundedRectRendering");
+    if (flags & QSGRenderNode::DepthAwareRendering)
+        list << QStringLiteral("DepthAwareRendering");
+    if (flags & QSGRenderNode::OpaqueRendering)
+        list << QStringLiteral("OpaqueRendering");
+    if (list.isEmpty())
+        return QStringLiteral("<none>");
+    return list.join(QStringLiteral(" | "));
+}
+#endif
 
 static QString qsgTextureFilteringToString(QSGTexture::Filtering filtering)
 {
@@ -906,6 +954,19 @@ void QuickInspector::registerMetaTypes()
     MO_ADD_PROPERTY(QSGOpacityNode, qreal, opacity, setOpacity);
     MO_ADD_PROPERTY(QSGOpacityNode, qreal, combinedOpacity, setCombinedOpacity);
 
+    MO_ADD_METAOBJECT1(QSGRenderNode, QSGNode);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+    MO_ADD_PROPERTY_RO(QSGRenderNode, QSGRenderNode::StateFlags, changedStates);
+    MO_ADD_PROPERTY_RO(QSGRenderNode, QSGRenderNode::RenderingFlags, flags);
+    MO_ADD_PROPERTY_RO(QSGRenderNode, QRectF, rect);
+    MO_ADD_PROPERTY_RO(QSGRenderNode, qreal, inheritedOpacity);
+#else
+    MO_ADD_PROPERTY_RO_NC(QSGRenderNode, QSGRenderNode::StateFlags, changedStates);
+    MO_ADD_PROPERTY(QSGRenderNode, qreal, inheritedOpacity, setInheritedOpacity);
+#endif
+    MO_ADD_PROPERTY_RO(QSGRenderNode, const QMatrix4x4 *, matrix);
+    MO_ADD_PROPERTY_RO(QSGRenderNode, const QSGClipNode *, clipList);
+
     MO_ADD_METAOBJECT0(QSGMaterial);
     MO_ADD_PROPERTY_RO(QSGMaterial, QSGMaterial::Flags, flags);
 
@@ -989,6 +1050,11 @@ void QuickInspector::registerVariantHandlers()
     VariantHandler::registerStringConverter<QSGTransformNode *>(Util::addressToString);
     VariantHandler::registerStringConverter<QSGRootNode *>(Util::addressToString);
     VariantHandler::registerStringConverter<QSGOpacityNode *>(Util::addressToString);
+    VariantHandler::registerStringConverter<QSGRenderNode *>(Util::addressToString);
+    VariantHandler::registerStringConverter<QSGRenderNode::StateFlags>(qSGRenderNodeStateFlagsToString);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+    VariantHandler::registerStringConverter<QSGRenderNode::RenderingFlags>(qSGRenderNodeRenderingFlagsToString);
+#endif
     VariantHandler::registerStringConverter<QSGNode::Flags>(qSGNodeFlagsToString);
     VariantHandler::registerStringConverter<QSGNode::DirtyState>(qSGNodeDirtyStateToString);
     VariantHandler::registerStringConverter<QSGGeometry *>(Util::addressToString);
@@ -1032,6 +1098,7 @@ void QuickInspector::registerPCExtensions()
 QString QuickInspector::findSGNodeType(QSGNode *node) const
 {
     // keep this in reverse topological order of the class hierarchy!
+    QSG_CHECK_TYPE(QSGRenderNode);
     QSG_CHECK_TYPE(QSGClipNode);
     QSG_CHECK_TYPE(QSGGeometryNode);
     QSG_CHECK_TYPE(QSGBasicGeometryNode);

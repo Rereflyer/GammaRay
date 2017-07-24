@@ -148,6 +148,12 @@ private:
                         #Getter, \
                         &Class::Getter));
 
+/** Register a read-only property (non const getter) for class @p Class. */
+#define MO_ADD_PROPERTY_RO_NC(Class, Type, Getter) \
+    mo->addProperty(new GammaRay::MetaPropertyNonConstImpl<Class, Type>( \
+                        #Getter, \
+                        &Class::Getter));
+
 /** Register a static property for class @p Class. */
 #define MO_ADD_PROPERTY_ST(Class, Type, Getter) \
     mo->addProperty(new GammaRay::MetaStaticPropertyImpl<Class, Type>( \

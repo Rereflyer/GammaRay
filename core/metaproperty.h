@@ -133,6 +133,55 @@ private:
     void (Class::*m_setter)(SetterArgType);
 };
 
+/** @brief Template-ed implementation of MetaProperty for member properties having non const getter. */
+template<typename Class, typename GetterReturnType, typename SetterArgType = GetterReturnType>
+class MetaPropertyNonConstImpl : public MetaProperty
+{
+private:
+    typedef typename detail::strip_const_ref<GetterReturnType>::type ValueType;
+
+public:
+    inline MetaPropertyNonConstImpl(
+        const char *name, GetterReturnType(Class::*getter)(),
+        void(Class::*setter)(SetterArgType) = nullptr)
+        : MetaProperty(name)
+        , m_getter(getter)
+        , m_setter(setter)
+    {
+    }
+
+    bool isReadOnly() const override
+    {
+        return m_setter == nullptr;
+    }
+
+    QVariant value(void *object) const override
+    {
+        Q_ASSERT(object);
+        Q_ASSERT(m_getter);
+        const ValueType v = (static_cast<Class *>(object)->*(m_getter))();
+        return QVariant::fromValue(v);
+    }
+
+    void setValue(void *object, const QVariant &value) override
+    {
+        if (isReadOnly())
+            return;
+        Q_ASSERT(object);
+        Q_ASSERT(m_setter);
+        (static_cast<Class *>(object)->*(m_setter))(value.value<ValueType>());
+    }
+
+    const char *typeName() const override
+    {
+        return QMetaType::typeName(qMetaTypeId<ValueType>());
+    }
+
+private:
+    GetterReturnType (Class::*m_getter)();
+    void (Class::*m_setter)(SetterArgType);
+};
+
 /** @brief Template-ed implementation of MetaProperty for static properties. */
 template<typename Class, typename GetterReturnType>
 class MetaStaticPropertyImpl : public MetaProperty
